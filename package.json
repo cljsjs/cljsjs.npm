@@ -1,0 +1,13 @@
+{
+  "name": "cljsjs.npm",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {
+    "material-ui": "^0.15.4",
+    "react": "^15.3.1",
+    "react-addons-create-fragment": "^15.3.1",
+    "react-addons-transition-group": "^15.3.1",
+    "react-dom": "^15.3.1",
+    "react-tap-event-plugin": "^1.0.0"
+  }
+}
