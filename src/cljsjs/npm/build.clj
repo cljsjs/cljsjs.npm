@@ -2,6 +2,7 @@
   (:require [cheshire.core :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [cljsjs.closure :as closure]
             [boot.util :as util]
             [boot.core :as boot]
             [boot.task.built-in :as built-in]))
