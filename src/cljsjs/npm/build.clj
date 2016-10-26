@@ -37,27 +37,65 @@
                                           (:tree fileset)))]
         (handler fileset)))))
 
+(defn strip-node-modules [path]
+  (string/replace path #"^node_modules/" ""))
+
+(defn package-path [full-path]
+  (second (re-find #"^node_modules/[^/]*/(.*)" full-path)))
+
+(defn aname [package-name main? package-path]
+  (-> (str package-name (if-not main?
+                          (str "/" (string/replace package-path #"\.js$" ""))))
+      (string/replace #"/" "\\$")))
+
+(defn normalize-url
+  "Simple URL normalization logic for import paths. Can normalize
+  relative paths."
+  [url-string]
+  (loop [result nil
+         parts (string/split url-string #"/")]
+    (if (seq parts)
+      (let [part (first parts)]
+        (case part
+          ;; Skip empty
+          "" (recur result (rest parts))
+          ;; Skip "."
+          "." (recur result (rest parts))
+          ;; Remove previous part, if there are previous non ".." parts
+          ".." (if (and (seq result) (not= ".." (first result)))
+                 (recur (rest result) (rest parts))
+                 (recur (conj result part) (rest parts)))
+          (recur (conj result part) (rest parts))))
+      (string/join "/" (reverse result)))))
+
+(defn drop-last-url-part [path]
+  (string/join "/" (butlast (string/split path #"/"))))
+
 (defn package'
   "A Task, but not."
-  [{:keys [name main]}]
+  [{:keys [package-name main]}]
   (let [out (boot/tmp-dir!)]
     (fn middleware [next-handler]
       (fn handler [fileset]
-        (util/info "Package %s\n" name)
-        (let [files (->> (file-seq (io/file "node_modules" name))
+        (util/info "Package %s\n" package-name)
+        (let [files (->> (file-seq (io/file "node_modules" package-name))
                          (remove #(re-find #"^node_modules/.*/node_modules" (.getPath %)))
                          (remove #(re-find #"^node_modules/.*/dist" (.getPath %)))
                          (filter #(.endsWith (.getName %) ".js"))
                          (map (fn [file]
                                 (let [path (.getPath file)
-                                      [_ package-path] (re-find #"^node_modules/[^/]*/(.*)" path)
-                                      aname (if (= main package-path)
-                                              name
-                                              (str name "/" (string/replace package-path #"\.js$" "")))
-                                      aname (string/replace aname #"/" "\\$")]
-                                  (io/copy file (doto (io/file out "cljsjs.npm" (string/replace path #"^node_modules/" "")) (io/make-parents)))
-                                  {:file (str "cljsjs.npm/" (string/replace path #"^node_modules/" ""))
-                                   :provides [aname]
+                                      module-path (package-path path)
+                                      module-name (aname package-name (= main module-path) module-path)
+                                      requires (mapv (fn [require]
+                                                       (if (.startsWith require ".")
+                                                         (aname package-name false (normalize-url (str (drop-last-url-part module-path) "/" require)))
+                                                         (string/replace require #"/" "\\$")))
+                                                    (closure/find-requires file))]
+                                  (io/copy file (doto (io/file out "cljsjs.npm" (strip-node-modules path))
+                                                  (io/make-parents)))
+                                  {:file (str "cljsjs.npm/" (strip-node-modules path))
+                                   :provides [module-name]
+                                   :requires requires
                                    :module-type :commonjs}))))]
           (doto (io/file out "deps.cljs")
             (io/make-parents)
@@ -73,7 +111,8 @@
         packages (map name (keys (:dependencies package-index)))]
     (fn middleware [next-handler]
       (let [next-handler (reduce (fn [next-handler package-name]
-                                   (let [package-json (read-json (io/file "node_modules" package-name "package.json"))
+                                   (let [package-json (-> (read-json (io/file "node_modules" package-name "package.json"))
+                                                          (clojure.set/rename-keys {:name :package-name}))
                                          middleware (with-files (constantly false)
                                         (comp (package' package-json)
                                               (built-in/pom :project (symbol "cljsjs.npm" package-name)

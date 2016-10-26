@@ -9,16 +9,13 @@
        (.. n getFirstChild (matchesQualifiedName "require"))
        (.. n getSecondChild isString)))
 
-(defn is-npm-require? [module-name]
-  false)
-
 (defn finder [requires]
   (reify NodeTraversal$Callback
     (shouldTraverse ^boolean [this t n parent]
       true)
     (visit ^void [this t n parent]
       (if (is-require? n)
-        (swap! requires conj  (.. n getSecondChild getString)))
+        (swap! requires conj (.. n getSecondChild getString)))
       nil)))
 
 (defn process-pass [compiler requires]
