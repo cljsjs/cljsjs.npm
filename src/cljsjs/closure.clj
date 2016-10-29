@@ -4,12 +4,12 @@
             CompilerOptions SourceFile NodeTraversal$Callback JSModule]
            [com.google.javascript.rhino Node]))
 
-(defn is-require? [n]
-  (and (= 2 (.getChildCount n))
-       (.. n getFirstChild (matchesQualifiedName "require"))
-       (.. n getSecondChild isString)))
+(defn is-require? [node]
+  (and (= 2 (.getChildCount node))
+       (.. node getFirstChild (matchesQualifiedName "require"))
+       (.. node getSecondChild isString)))
 
-(defn finder [requires]
+(defn require-finder [requires]
   (reify NodeTraversal$Callback
     (shouldTraverse ^boolean [this t n parent]
       true)
@@ -18,17 +18,17 @@
         (swap! requires conj (.. n getSecondChild getString)))
       nil)))
 
-(defn process-pass [compiler requires]
+(defn find-require-pass [compiler requires]
   (reify CompilerPass
     (process [this _ root]
-      (NodeTraversal/traverseEs6 compiler root (finder requires)))))
+      (NodeTraversal/traverseEs6 compiler root (require-finder requires)))))
 
 (defn find-requires [f]
   (let [requires (atom [])
         module (doto (JSModule. "$singleton$")
                  (.add (SourceFile/fromFile f)))
         closure-compiler (com.google.javascript.jscomp.Compiler.)
-        pass (process-pass closure-compiler requires)]
+        pass (find-require-pass closure-compiler requires)]
     (doseq [input (.getInputs module)]
       (.process pass nil (.getAstRoot input closure-compiler)))
     @requires))
