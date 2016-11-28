@@ -103,8 +103,8 @@
                                                                          (string/replace require-path #"/" "\\$")))
                                                                      (closure/find-requires file))]
                                                   {:input (.getPath file)
-                                                   :output (util/normalize-url (str "cljsjs.npm/" (strip-node-modules module-path)))
-                                                   :deps {:file (util/normalize-url (str "cljsjs.npm/" (strip-node-modules module-path)))
+                                                   :output (util/normalize-url (str "cljsjs.npm/node_modules/" module-path))
+                                                   :deps {:file (util/normalize-url (str "cljsjs.npm/node_modules/" module-path))
                                                           :provides [module-name]
                                                           :requires requires
                                                           :module-type :commonjs}})))))))
